@@ -25,17 +25,30 @@ class UR16eSim():
     # configure sim
     sim_params = gymapi.SimParams()
     sim_params.dt = 1.0 / 60.0
-    sim_params.physx.contact_offset = 0.001
-    sim_params.physx.solver_type = 1
-    sim_params.physx.num_position_iterations = 6
-    sim_params.physx.num_velocity_iterations = 0
-    sim_params.physx.num_threads = args.num_threads
-    sim_params.physx.use_gpu = args.use_gpu
-    sim_params.use_gpu_pipeline = args.use_gpu_pipeline
-    sim_params.up_axis = gymapi.UP_AXIS_Z
-    sim_params.gravity = gymapi.Vec3(0.0, 0.0, -9.8)
+    sim_params.substeps = 1
+    if args.physics_engine == gymapi.SIM_FLEX:
+        sim_params.flex.solver_type = 5
+        sim_params.flex.num_outer_iterations = 4
+        sim_params.flex.num_inner_iterations = 15
+        sim_params.flex.relaxation = 0.75
+        sim_params.flex.warm_start = 0.8
+    elif args.physics_engine == gymapi.SIM_PHYSX:
+        sim_params.physx.contact_offset = 0.01
+        sim_params.physx.solver_type = 0
+        sim_params.physx.num_position_iterations = 6
+        sim_params.physx.num_velocity_iterations = 0
+        sim_params.physx.num_threads = args.num_threads
+        sim_params.physx.use_gpu = False
+        sim_params.up_axis = gymapi.UP_AXIS_Z
+        sim_params.gravity = gymapi.Vec3(0.0, 0.0, -9.8)
     
-    self.device = args.sim_device if args.use_gpu_pipeline else 'cpu'
+    sim_params.use_gpu_pipeline = False
+    if args.use_gpu_pipeline:
+        print("WARNING: Forcing CPU pipeline.")
+
+    args.graphics_device_id = 0
+
+    # self.device = args.sim_device if args.use_gpu_pipeline else 'cpu'
     self.sim = gym.create_sim(args.compute_device_id, 
                               args.graphics_device_id,
                               args.physics_engine,
@@ -78,7 +91,18 @@ class UR16eSim():
                                      self.asset_root, 
                                      self.robot_file, 
                                      asset_options)                             
-                                       
+
+    # Attractor setup
+    attractor_handles = []
+    attractor_properties = gymapi.AttractorProperties()
+    attractor_properties.stiffness = 5e5
+    attractor_properties.damping = 5e3   
+
+    # Make attractor in all axes
+    attractor_properties.axes = gymapi.AXIS_ALL
+    pose = gymapi.Transform()
+    pose.p = gymapi.Vec3(0, 0.0, 0.0)
+    pose.r = gymapi.Quat(-0.707107, 0.0, 0.0, 0.707107)  
     # goal_asset_options = gymapi.AssetOptions()
     # goal_asset_options.fix_base_link = True
     # self.goal_asset = gym.load_asset(self.sim, 
@@ -110,29 +134,39 @@ class UR16eSim():
     self.init_goal_pose.r = gymapi.Quat(0,0,0,1)     
             
     for i in range(self.num_envs):
-      # create env
-      env = gym.create_env(self.sim, self.env_lower, self.env_upper, self.envs_per_row)
-      self.envs.append(env)     
+        # create env
+        env = gym.create_env(self.sim, self.env_lower, self.env_upper, self.envs_per_row)
+        self.envs.append(env)     
 
-      gym.begin_aggregate(env, 
-                          self.max_body_count, 
-                          self.max_shape_count, 
-                          True)
-      robot_actor_handle = gym.create_actor(env, 
-                                           self.robot_asset, 
-                                           self.robot_pose, 
-                                           "actor"+str(self.actors_per_env*i), 
-                                           self.actors_per_env*i)     
+        gym.begin_aggregate(env, 
+                            self.max_body_count, 
+                            self.max_shape_count, 
+                            True)
+        robot_actor_handle = gym.create_actor(env, 
+                                            self.robot_asset, 
+                                            self.robot_pose, 
+                                            "actor"+str(self.actors_per_env*i), 
+                                            self.actors_per_env*i)     
+        body_dict = gym.get_actor_rigid_body_dict(env, robot_actor_handle)
+        props = gym.get_actor_rigid_body_states(env, robot_actor_handle, gymapi.STATE_POS)
+
+        # Initialize the attractor
+        attractor_properties.target = props['pose'][:][body_dict["wrist_3_link"]]
+        attractor_properties.target.p.y -= 0.1
+        attractor_properties.target.p.z = 0.1
+        attractor_properties.rigid_handle = "wrist_3_link"
+    
     #   goal_actor_handle = gym.create_actor(env, 
     #                                        self.goal_asset, 
     #                                        self.init_goal_pose, 
     #                                        "actor"+str(self.actors_per_env*i+2), 
     #                                        self.actors_per_env*i+2)        
-      gym.end_aggregate(env)
       
-      gym.enable_actor_dof_force_sensors(env, robot_actor_handle)
-      
-      dof_states = gym.get_actor_dof_states(env, robot_actor_handle, gymapi.STATE_ALL)
+        gym.end_aggregate(env)
+        
+        gym.enable_actor_dof_force_sensors(env, robot_actor_handle)
+        
+        dof_states = gym.get_actor_dof_states(env, robot_actor_handle, gymapi.STATE_ALL)
     #   dof_states[0][0] = 0.0
     #   dof_states[1][0] = 0.298
     #   dof_states[2][0] = 0.35
@@ -171,8 +205,10 @@ class UR16eSim():
     #   gym.set_actor_rigid_shape_properties(env, 
     #                                        object_actor_handle, 
     #                                        cylinder_rs_props)        
-      self.actors.append(robot_actor_handle)
-    #   self.actors.append(goal_actor_handle)        
+        self.actors.append(robot_actor_handle)
+    #   self.actors.append(goal_actor_handle)     
+        attractor_handle = gym.create_rigid_body_attractor(env, attractor_properties)
+        attractor_handles.append(attractor_handle)   
 
     gym.prepare_sim(self.sim)
 
@@ -221,10 +257,15 @@ class UR16eSim():
       self.gym.draw_viewer(self.viewer, self.sim, True)
     self.gym.sync_frame_time(self.sim)      
       
-  def set_goal_pose(self, goal_x, goal_y):
+  def set_goal_pose(self, goal_x, goal_y, goal_z):
     self.goal_pos[:,0] = goal_x
     self.goal_pos[:,1] = goal_y
-    self.gym.set_actor_root_state_tensor(self.sim, self._root_tensor)      
+    self.goal_pos[:,2] = goal_z
+    self.gym.set_actor_root_state_tensor(self.sim, self._root_tensor)   
+       
+    # Draw axes and sphere at attractor location
+    # gymutil.draw_lines(axes_geom, gym, viewer, envs[i], pose)
+    # gymutil.draw_lines(sphere_geom, gym, viewer, envs[i], pose)
 
   # Get the state of the sim
   # Returns tensor of size (n_envs, 6+6+3+4+3+3=25)
@@ -321,14 +362,16 @@ def main():
   args = gymutil.parse_arguments(
     description="BATA Hand Sim")
 
-#   if args.pipeline != 'cpu':
-#     print('ERROR:Please run with [--pipeline cpu], gpu pipeline has problems with setting state')
-#     return
+  args.pipeline = 'cpu'
+  if args.pipeline != 'cpu':
+    print('ERROR:Please run with [--pipeline cpu], gpu pipeline has problems with setting state')
+    return
 
   # set up the env grid
   num_envs = 1
   device = args.sim_device if args.use_gpu_pipeline else 'cpu'
-  
+
+  print('DEVICE', device)
   headless = False
   bhs = UR16eSim(gym, num_envs, args, headless=headless)
   cur_state = bhs.get_sim_state()
