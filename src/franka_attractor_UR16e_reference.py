@@ -91,7 +91,7 @@ env_upper = gymapi.Vec3(spacing, spacing, spacing)
 envs = []
 franka_handles = []
 franka_hand = "wrist_3_link"
-
+axes_geom
 # Attractor setup
 attractor_handles = []
 attractor_properties = gymapi.AttractorProperties()

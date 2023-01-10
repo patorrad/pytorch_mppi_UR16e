@@ -93,7 +93,7 @@ class UR16eSim():
                                      asset_options)                             
 
     # Attractor setup
-    attractor_handles = []
+    self.attractor_handles = []
     attractor_properties = gymapi.AttractorProperties()
     attractor_properties.stiffness = 5e5
     attractor_properties.damping = 5e3   
@@ -132,7 +132,16 @@ class UR16eSim():
     self.init_goal_pose = gymapi.Transform()
     self.init_goal_pose.p = gymapi.Vec3(0.17, -0.045, 0.0)
     self.init_goal_pose.r = gymapi.Quat(0,0,0,1)     
-            
+
+    # Create helper geometry used for visualization
+    # Create an wireframe axis
+    self.axes_geom = gymutil.AxesGeometry(0.1)
+    # Create an wireframe sphere
+    sphere_rot = gymapi.Quat.from_euler_zyx(0.5 * math.pi, 0, 0)
+    sphere_pose = gymapi.Transform(r=sphere_rot)
+    self.sphere_geom = gymutil.WireframeSphereGeometry(0.03, 12, 12, sphere_pose, color=(1, 0, 0))
+
+    print("Creating %d environments" % num_envs)
     for i in range(self.num_envs):
         # create env
         env = gym.create_env(self.sim, self.env_lower, self.env_upper, self.envs_per_row)
@@ -149,12 +158,13 @@ class UR16eSim():
                                             self.actors_per_env*i)     
         body_dict = gym.get_actor_rigid_body_dict(env, robot_actor_handle)
         props = gym.get_actor_rigid_body_states(env, robot_actor_handle, gymapi.STATE_POS)
+        hand_handle = body = gym.find_actor_rigid_body_handle(env, robot_actor_handle, "wrist_3_link")
 
         # Initialize the attractor
         attractor_properties.target = props['pose'][:][body_dict["wrist_3_link"]]
         attractor_properties.target.p.y -= 0.1
         attractor_properties.target.p.z = 0.1
-        attractor_properties.rigid_handle = "wrist_3_link"
+        attractor_properties.rigid_handle = hand_handle
     
     #   goal_actor_handle = gym.create_actor(env, 
     #                                        self.goal_asset, 
@@ -208,7 +218,7 @@ class UR16eSim():
         self.actors.append(robot_actor_handle)
     #   self.actors.append(goal_actor_handle)     
         attractor_handle = gym.create_rigid_body_attractor(env, attractor_properties)
-        attractor_handles.append(attractor_handle)   
+        self.attractor_handles.append(attractor_handle)   
 
     gym.prepare_sim(self.sim)
 
@@ -257,15 +267,25 @@ class UR16eSim():
       self.gym.draw_viewer(self.viewer, self.sim, True)
     self.gym.sync_frame_time(self.sim)      
       
-  def set_goal_pose(self, goal_x, goal_y, goal_z):
-    self.goal_pos[:,0] = goal_x
-    self.goal_pos[:,1] = goal_y
-    self.goal_pos[:,2] = goal_z
-    self.gym.set_actor_root_state_tensor(self.sim, self._root_tensor)   
-       
+  def set_goal_pose(self, t, goal_x, goal_y, goal_z):
+    # self.goal_pos[:,0] = goal_x
+    # self.goal_pos[:,1] = goal_y
+    # self.goal_pos[:,2] = goal_z
+    # self.gym.set_actor_root_state_tensor(self.sim, self._root_tensor)   
+    # gym.clear_lines(viewer)
+    for i in range(self.num_envs):
+        # Update attractor target from current franka state
+        attractor_properties = self.gym.get_attractor_properties(self.envs[i], self.attractor_handles[i])
+        pose = attractor_properties.target
+        pose.p.x = 0.2 * math.sin(1.5 * t - math.pi * float(i) / self.num_envs)
+        pose.p.y = 0.7 + 0.1 * math.cos(2.5 * t - math.pi * float(i) / self.num_envs)
+        pose.p.z = 0.2 * math.cos(1.5 * t - math.pi * float(i) / self.num_envs)
+
+        self.gym.set_attractor_target(self.envs[i], self.attractor_handles[i], pose)
+
     # Draw axes and sphere at attractor location
-    # gymutil.draw_lines(axes_geom, gym, viewer, envs[i], pose)
-    # gymutil.draw_lines(sphere_geom, gym, viewer, envs[i], pose)
+    gymutil.draw_lines(self.axes_geom, self.gym, self.viewer, self.envs[i], pose)
+    gymutil.draw_lines(self.sphere_geom, self.gym, self.viewer, self.envs[i], pose)
 
   # Get the state of the sim
   # Returns tensor of size (n_envs, 6+6+3+4+3+3=25)
@@ -332,10 +352,15 @@ class UR16eSim():
   # See get_sim_state() for format of state
   # action should be a tenor of size (n_envs, 2)
   def step(self, state, action, sync=False, render=False):
+    self.gym.clear_lines(self.viewer)
 
     # self.gym.set_dof_actuation_force_tensor(self.sim, 
     #                                         gymtorch.unwrap_tensor(intrinsic_torques))
-                                           
+    
+    # Move robot
+    t = self.gym.get_sim_time(self.sim)
+    self.set_goal_pose(t, 1, 1, 1)
+
     # step the physics
     self.gym.simulate(self.sim)
     self.gym.fetch_results(self.sim, True)
@@ -373,10 +398,10 @@ def main():
 
   print('DEVICE', device)
   headless = False
-  bhs = UR16eSim(gym, num_envs, args, headless=headless)
-  cur_state = bhs.get_sim_state()
+  rs = UR16eSim(gym, num_envs, args, headless=headless)
+  cur_state = rs.get_sim_state()
   cur_action = torch.zeros((1,2),dtype=torch.float32,device=device)
   while True:
-    cur_state = bhs.step(cur_state, cur_action, True, True)    
+    cur_state = rs.step(cur_state, cur_action, True, True)    
 if __name__ == '__main__':
   main()
