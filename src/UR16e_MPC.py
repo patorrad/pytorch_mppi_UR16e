@@ -39,9 +39,9 @@ class UR16eMPC(object):
     def mppi_running_cost(state, action):
       cost = torch.zeros(state.shape[0], dtype=torch.float32, device=self.device)    
     
-      # Compute contact cost
-      cost[torch.norm(self.bhs.l_tip_contact,dim=1) < self.EPSILON] += self.CONTACT_W
-      cost[torch.norm(self.bhs.r_tip_contact,dim=1) < self.EPSILON] += self.CONTACT_W
+    #   # Compute contact cost
+    #   cost[torch.norm(self.bhs.l_tip_contact,dim=1) < self.EPSILON] += self.CONTACT_W
+    #   cost[torch.norm(self.bhs.r_tip_contact,dim=1) < self.EPSILON] += self.CONTACT_W
       
       # Compute ctrl cost
       cost += self.CTRL_COST_W*torch.norm(action, dim=1)
@@ -49,7 +49,7 @@ class UR16eMPC(object):
       # Compute orientation cost (magnitude of x,y components of quaternion)
       cost += self.QUAT_ERROR_W*torch.norm(state[:,15:17], dim=1)
       
-      return cost
+      return 1 # cost
     
     def mppi_terminal_state_cost(state, action):
       return self.POS_ERROR_W*torch.norm(self.goal_pos[0:2] - state[:,:,-1,12:14],dim=-1)
@@ -155,8 +155,8 @@ def main():
  
   headless = False
   r_mpc = UR16eMPC(gym,
-                       args,
-                       headless)
+                    args,
+                    headless)
   
   cur_state = r_mpc.rs.get_sim_state()[None, 0, :]
 

@@ -239,10 +239,15 @@ class UR16eSim():
 
     # self.goal_idx = gym.get_actor_index(self.envs[0], self.actors[2], gymapi.DOMAIN_SIM)
     # self.goal_pos = self.root_tensor[self.goal_idx::self.actors_per_env, :]
-                                                         
+
+    self.dof_per_env = gym.get_env_dof_count(self.envs[0])
+    self.num_dofs = len(self.envs) * self.dof_per_env
+    self.robot_dof1_idx = gym.find_actor_dof_index(self.envs[0], self.actors[0], 'hello', gymapi.DOMAIN_SIM)
+    self.robot_dof1_pos = self.dof_states[self.robot_dof1_idx::self.dof_per_env,0]   
+    self.robot_dof1_vel = self.dof_states[self.robot_dof1_idx::self.dof_per_env,1]                                                  
 
     bodies_per_env = gym.get_env_rigid_body_count(self.envs[0])              
-      
+    
     # Populate initial state of sim
     self.gym.simulate(self.sim)
     self.gym.fetch_results(self.sim, True)
@@ -267,7 +272,7 @@ class UR16eSim():
       self.gym.draw_viewer(self.viewer, self.sim, True)
     self.gym.sync_frame_time(self.sim)      
       
-  def set_goal_pose(self, t, goal_x, goal_y, goal_z):
+  def set_goal_pose(self, goal_x, goal_y, goal_z):
     # self.goal_pos[:,0] = goal_x
     # self.goal_pos[:,1] = goal_y
     # self.goal_pos[:,2] = goal_z
@@ -277,9 +282,9 @@ class UR16eSim():
         # Update attractor target from current franka state
         attractor_properties = self.gym.get_attractor_properties(self.envs[i], self.attractor_handles[i])
         pose = attractor_properties.target
-        pose.p.x = 0.2 * math.sin(1.5 * t - math.pi * float(i) / self.num_envs)
-        pose.p.y = 0.7 + 0.1 * math.cos(2.5 * t - math.pi * float(i) / self.num_envs)
-        pose.p.z = 0.2 * math.cos(1.5 * t - math.pi * float(i) / self.num_envs)
+        pose.p.x = goal_x # 0.2 * math.sin(1.5 * t - math.pi * float(i) / self.num_envs)
+        pose.p.y = goal_y # 0.7 + 0.1 * math.cos(2.5 * t - math.pi * float(i) / self.num_envs)
+        pose.p.z = goal_z # 0.2 * math.cos(1.5 * t - math.pi * float(i) / self.num_envs)
 
         self.gym.set_attractor_target(self.envs[i], self.attractor_handles[i], pose)
 
@@ -359,7 +364,7 @@ class UR16eSim():
     
     # Move robot
     t = self.gym.get_sim_time(self.sim)
-    self.set_goal_pose(t, 1, 1, 1)
+    self.set_goal_pose(0.5, 0.5, 0.5)
 
     # step the physics
     self.gym.simulate(self.sim)
