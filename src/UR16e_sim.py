@@ -242,9 +242,25 @@ class UR16eSim():
 
     self.dof_per_env = gym.get_env_dof_count(self.envs[0])
     self.num_dofs = len(self.envs) * self.dof_per_env
-    self.robot_dof1_idx = gym.find_actor_dof_index(self.envs[0], self.actors[0], 'hello', gymapi.DOMAIN_SIM)
-    self.robot_dof1_pos = self.dof_states[self.robot_dof1_idx::self.dof_per_env,0]   
-    self.robot_dof1_vel = self.dof_states[self.robot_dof1_idx::self.dof_per_env,1]                                                  
+
+    self.robot_dof1_idx = gym.find_actor_dof_index(self.envs[0], self.actors[0], 'shoulder_pan_joint', gymapi.DOMAIN_SIM)
+    self.robot_dof2_idx = gym.find_actor_dof_index(self.envs[0], self.actors[0], 'shoulder_lift_joint', gymapi.DOMAIN_SIM)
+    self.robot_dof3_idx = gym.find_actor_dof_index(self.envs[0], self.actors[0], 'elbow_joint', gymapi.DOMAIN_SIM)
+    self.robot_dof4_idx = gym.find_actor_dof_index(self.envs[0], self.actors[0], 'wrist_1_joint', gymapi.DOMAIN_SIM)
+    self.robot_dof5_idx = gym.find_actor_dof_index(self.envs[0], self.actors[0], 'wrist_2_joint', gymapi.DOMAIN_SIM)
+    self.robot_dof6_idx = gym.find_actor_dof_index(self.envs[0], self.actors[0], 'wrist_3_joint', gymapi.DOMAIN_SIM)
+    self.robot_dof1_pos = self.dof_states[self.robot_dof1_idx::self.dof_per_env,0]  
+    self.robot_dof2_pos = self.dof_states[self.robot_dof2_idx::self.dof_per_env,0]   
+    self.robot_dof3_pos = self.dof_states[self.robot_dof3_idx::self.dof_per_env,0]   
+    self.robot_dof4_pos = self.dof_states[self.robot_dof4_idx::self.dof_per_env,0]   
+    self.robot_dof5_pos = self.dof_states[self.robot_dof5_idx::self.dof_per_env,0]
+    self.robot_dof6_pos = self.dof_states[self.robot_dof6_idx::self.dof_per_env,0]      
+    self.robot_dof1_vel = self.dof_states[self.robot_dof1_idx::self.dof_per_env,1]  
+    self.robot_dof2_vel = self.dof_states[self.robot_dof2_idx::self.dof_per_env,1]   
+    self.robot_dof3_vel = self.dof_states[self.robot_dof3_idx::self.dof_per_env,1]   
+    self.robot_dof4_vel = self.dof_states[self.robot_dof4_idx::self.dof_per_env,1]   
+    self.robot_dof5_vel = self.dof_states[self.robot_dof5_idx::self.dof_per_env,1] 
+    self.robot_dof6_vel = self.dof_states[self.robot_dof6_idx::self.dof_per_env,1]                                                   
 
     bodies_per_env = gym.get_env_rigid_body_count(self.envs[0])              
     
@@ -315,15 +331,38 @@ class UR16eSim():
     #                   (self.r_finger_torque.finger_dof3_pos[:] - self.prev_finger_dofs[:,5])[:,None]/self.dt,
     #                   self.cylinder_pos], 
     #                  dim=1) 
-    return     
+    self.robot_dof1_pos = self.dof_states[self.robot_dof1_idx::self.dof_per_env,0]  
+    self.robot_dof2_pos = self.dof_states[self.robot_dof2_idx::self.dof_per_env,0]   
+    self.robot_dof3_pos = self.dof_states[self.robot_dof3_idx::self.dof_per_env,0]   
+    self.robot_dof4_pos = self.dof_states[self.robot_dof4_idx::self.dof_per_env,0]   
+    self.robot_dof5_pos = self.dof_states[self.robot_dof5_idx::self.dof_per_env,0]
+    self.robot_dof6_pos = self.dof_states[self.robot_dof6_idx::self.dof_per_env,0]      
+    self.robot_dof1_vel = self.dof_states[self.robot_dof1_idx::self.dof_per_env,1]  
+    self.robot_dof2_vel = self.dof_states[self.robot_dof2_idx::self.dof_per_env,1]   
+    self.robot_dof3_vel = self.dof_states[self.robot_dof3_idx::self.dof_per_env,1]   
+    self.robot_dof4_vel = self.dof_states[self.robot_dof4_idx::self.dof_per_env,1]   
+    self.robot_dof5_vel = self.dof_states[self.robot_dof5_idx::self.dof_per_env,1] 
+    self.robot_dof6_vel = self.dof_states[self.robot_dof6_idx::self.dof_per_env,1]  
+    return torch.cat([self.robot_dof1_pos,  
+                        self.robot_dof2_pos,   
+                        self.robot_dof3_pos,   
+                        self.robot_dof4_pos,   
+                        self.robot_dof5_pos,
+                        self.robot_dof6_pos,      
+                        self.robot_dof1_vel,  
+                        self.robot_dof2_vel,   
+                        self.robot_dof3_vel,   
+                        self.robot_dof4_vel,   
+                        self.robot_dof5_vel, 
+                        self.robot_dof6_vel]) 
                      
   # Set the state of the sim
   # state should be a tensor of size (n_envs, 6+6+3+4+3+3=25) or( 1,25)
   # See get_sim_state() for format of state
   def set_sim_state(self, state):                    
-    if(len(state.shape) == 1):
-      state = state[None] # Add another axis
-    assert(state.shape[1] == 25)
+    # if(len(state.shape) == 1):
+    #   state = state[None] # Add another axis
+    # assert(state.shape[1] == 25)
   
     self.prev_finger_dofs[:,:] = state[:,0:6] - self.dt*state[:,6:12]
   
@@ -383,7 +422,20 @@ class UR16eSim():
     if sync:
       self.gym.sync_frame_time(self.sim)
     
-    return self.get_sim_state()  
+    self.get_sim_state()  
+    print('dof1_pos', self.robot_dof1_pos)
+    print('dof2_pos', self.robot_dof2_pos)
+    print('dof3_pos', self.robot_dof3_pos)
+    print('dof4_pos', self.robot_dof4_pos)
+    print('dof5_pos', self.robot_dof5_pos)
+    print('dof6_pos', self.robot_dof6_pos)
+    print('dof1_vel', self.robot_dof1_vel)
+    print('dof2_vel', self.robot_dof2_vel)
+    print('dof3_vel', self.robot_dof3_vel)
+    print('dof4_vel', self.robot_dof4_vel)
+    print('dof5_vel', self.robot_dof5_vel)
+    print('dof6_vel', self.robot_dof6_vel)
+    return
     
 def main():    
   # initialize gym
