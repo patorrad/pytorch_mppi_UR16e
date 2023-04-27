@@ -295,18 +295,18 @@ class UR16eSim():
     # self.gym.set_actor_root_state_tensor(self.sim, self._root_tensor)   
     # gym.clear_lines(viewer)
     for i in range(self.num_envs):
-        # Update attractor target from current franka state
-        attractor_properties = self.gym.get_attractor_properties(self.envs[i], self.attractor_handles[i])
-        pose = attractor_properties.target
-        pose.p.x = goal_x # 0.2 * math.sin(1.5 * t - math.pi * float(i) / self.num_envs)
-        pose.p.y = goal_y # 0.7 + 0.1 * math.cos(2.5 * t - math.pi * float(i) / self.num_envs)
-        pose.p.z = goal_z # 0.2 * math.cos(1.5 * t - math.pi * float(i) / self.num_envs)
+      # Update attractor target from current franka state
+      attractor_properties = self.gym.get_attractor_properties(self.envs[i], self.attractor_handles[i])
+      pose = attractor_properties.target
+      pose.p.x = goal_x # 0.2 * math.sin(1.5 * t - math.pi * float(i) / self.num_envs)
+      pose.p.y = goal_y # 0.7 + 0.1 * math.cos(2.5 * t - math.pi * float(i) / self.num_envs)
+      pose.p.z = goal_z # 0.2 * math.cos(1.5 * t - math.pi * float(i) / self.num_envs)
 
-        self.gym.set_attractor_target(self.envs[i], self.attractor_handles[i], pose)
+      self.gym.set_attractor_target(self.envs[i], self.attractor_handles[i], pose)
 
-    # Draw axes and sphere at attractor location
-    gymutil.draw_lines(self.axes_geom, self.gym, self.viewer, self.envs[i], pose)
-    gymutil.draw_lines(self.sphere_geom, self.gym, self.viewer, self.envs[i], pose)
+      # Draw axes and sphere at attractor location
+      # gymutil.draw_lines(self.axes_geom, self.gym, self.viewer, self.envs[i], pose)
+      # gymutil.draw_lines(self.sphere_geom, self.gym, self.viewer, self.envs[i], pose)
 
   # Get the state of the sim
   # Returns tensor of size (n_envs, 6+6+3+4+3+3=25)
@@ -403,7 +403,7 @@ class UR16eSim():
     
     # Move robot
     t = self.gym.get_sim_time(self.sim)
-    self.set_goal_pose(0.5, 0.5, 0.5)
+    self.set_goal_pose(00.2, 0.2, 0.2)
 
     # step the physics
     self.gym.simulate(self.sim)
@@ -457,7 +457,8 @@ def main():
   headless = False
   rs = UR16eSim(gym, num_envs, args, headless=headless)
   cur_state = rs.get_sim_state()
-  cur_action = torch.zeros((1,2),dtype=torch.float32,device=device)
+  # cur_action = torch.zeros((1,2),dtype=torch.float32,device=device)
+  cur_action = []
   while True:
     cur_state = rs.step(cur_state, cur_action, True, True)    
 if __name__ == '__main__':
